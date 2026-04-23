@@ -16,10 +16,12 @@ import { Label } from "@/components/ui/label"
 export default function LoginPage() {
   const router = useRouter()
 
-  // Função única para mandar para o dashboard
+  // Função única para mandar para a página de pacientes
   const entrarNoSistema = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    router.push("/")
+    
+    // Mudamos de "/" para "/pacientes" para evitar o conflito com o redirect do config
+    router.push("/pacientes")
   }
 
   return (
