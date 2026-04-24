@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import logging
-import tensorflot_hub as hub
+import tensorflow_hub as hub
 from utils import fit_model
 
 logger = logging.getLogger("Engine")
@@ -33,7 +33,7 @@ from monocular_demos.biomechanics_mjx.monocular_trajectory import KineticsWrappe
 from monocular_demos.biomechanics_mjx.visualize import render_trajectory
 
 class GaitAnalysisEngine:
-    def __init__(_self, window_L: int 150):
+    def __init__(_self, window_L: int = 150):
         _self.window_L = window_L
         _self.metrabs_model = None
         _self.transformer_model = None
@@ -46,7 +46,7 @@ class GaitAnalysisEngine:
         Essa função configura o TensorFlow para usar memória VRAM
         conforme precisar usando memory growth.
     """
-    def _setup_gpu():
+    def _setup_gpu(_self):
         gpus = tf.config.list_physical_devices("GPU")
         logger.debug("Configurando TensorFlow")
         if gpus:
@@ -73,14 +73,14 @@ class GaitAnalysisEngine:
     def calculate_kinematics(_self, raw_pose3d):
         pose = raw_pose3d.copy()
         pose = pose[:, :, [0,2,1]]
-        pose[:, :. 2] *= -1
+        pose[:, :, 2] *= -1
         pose /= 1000.0
         pose = pose - np.min(pose, axis=1, keepdims=True)
 
         timestamps = jnp.arange(len(pose)) / 30.0
         dataset = (timestamps, pose)
 
-        fkw = get_default_wrapper
+        fkw = get_default_wrapper()
 
         updated_model, metrics = fit_model(fkw, dataset)
 
@@ -90,7 +90,7 @@ class GaitAnalysisEngine:
 
         return ang, dataset[0]
 
-    def _process_video(_self, video_path):
+    def process_video(_self, video_path: str, height_mm: int, rotated: bool = False):
         logger.info("Começando processamento real do vídeo")
 
         vid, n_frames = video_reader(video_path)
@@ -126,11 +126,11 @@ class GaitAnalysisEngine:
         phase, stride = gait_phase_stride_inference(
             keypoints, 
             height_mm, 
-            self.transformer_model, 
-            self.window_L
+            _self.transformer_model, 
+            _self.window_L
         )
 
-        angulos_3d, timestamps_jax = self;calculate_kinematics(pose3d)
+        angulos_3d, timestamps_jax = _self.calculate_kinematics(pose3d)
 
         phase_ordered = np.take(phase, [0, 4, 1, 5, 2, 6, 3, 7], axis=-1)
         state, predictions, errors = gait_kalman_smoother(phase_ordered)

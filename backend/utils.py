@@ -11,7 +11,7 @@ def loss(
     model: KineticsWrapper,
     x: Float[Array, "times"],
     y: Float[Array, "times keypoints 3"],
-    site_offset_regularization: 1e-1
+    site_offset_regularization = 1e-1
 ) -> Tuple[Float, Dict]
 
     timestamps = x
@@ -24,7 +24,7 @@ def loss(
         skip_action=True
     )
 
-    prep_kp3d = state.site_xpos
+    pred_kp3d = state.site_xpos
 
     l = jnp.mean((pred_kp3d - keypoints3d) ** 2) * 100 # em cm
     metrics["kp_err"] = l

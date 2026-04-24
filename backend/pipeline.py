@@ -26,47 +26,49 @@ logger.debug("Modelo carregado")
     para puxar os dados iniciais que vão ser utilizados na função da Fase 1, com
     base no fluxograma do Obsidian.
 """
+
 class JobInfo(BaseModel):
-    _job_id: str
-    _status: str
-    _stage: str
-    _created_at: datetime
-    _started_at: datetime | None = None
-    _finished_at: datetime | None = None
-    _duration_ms: int
+    job_id: str
+    status: str
+    stage: str
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int
 
 class ErrorInfo(BaseModel):
-    _code: str
-    _message: str
-    _stage: str
-    _details: str | None = None
-    _retryable: bool
+    code: str
+    message: str
+    stage: str
+    details: str | None = None
+    retryable: bool
 
 class InputSummary(BaseModel):
-    _video_path: str
-    _height_mm: int
-    _rotated: bool
-    _window_L: int
-    _fps: float
-    _duration_ms: int
+    video_path: str
+    height_mm: int
+    rotated: bool
+    window_L: int
+    fps: float
+    duration_ms: int
 
 class QualityInfo(BaseModel):
-    _frames_total: int
-    _frames_without_detection: int
-    _warnings: list[str]
+    frames_total: int
+    frames_without_detection: int
+    warnings: list[str]
 
 class BiomechanicalData(BaseModel):
-    _events: list
-    _kinematics: list
-    _pose3d_url: list | None = None
+    events: list
+    kinematics: dict
+    pose3d: list
+    video_3d: str | None = None
 
 class ResultV1(BaseModel):
-    _result_version: str
-    _job: JobInfo
-    _error: ErrorInfo | None = None
-    _input_summary: InputSummary | None = None
-    _quality_info: QualityInfo | None = None
-    _data: BiomechanicalData | None = None
+    result_version: str
+    job: JobInfo
+    error: ErrorInfo | None = None
+    input_summary: InputSummary | None = None
+    quality_info: QualityInfo | None = None
+    data: BiomechanicalData | None = None
 
 """
     Essa é a função que puxa os dados iniciais, ela usa OpenCV
@@ -135,13 +137,13 @@ def run_pipeline(video_path, height_mm, window_L):
     logger.debug("Criando job")
 
     job = JobInfo(
-        _job_id = str(uuid4()),
-        _status = "running",
-        _stage = "ingest",
-        _created_at = datetime.now(timezone.utc),
-        _started_at = datetime.now(timezone.utc),
-        _finished_at = 0,
-        _duration_ms = 0
+        job_id = str(uuid4()),
+        status = "running",
+        stage = "ingest",
+        created_at = datetime.now(timezone.utc),
+        started_at = datetime.now(timezone.utc),
+        finished_at = 0,
+        duration_ms = 0
     )
 
     logger.debug("Job criado, entrando no try")
@@ -154,85 +156,94 @@ def run_pipeline(video_path, height_mm, window_L):
         logger.info("Metadados extraídos, instanciando classes")
 
         input_summary = InputSummary( # Com base nos metadados, preenche o InputSummary
-            _video_path = video_path,
-            _height_mm = height_mm,
-            _window_L = window_L,
-            _rotated = video_data["rotated"],
-            _fps = video_data["fps"],
-            _duration_ms = video_data["duration_ms" ]
+            video_path = video_path,
+            height_mm = height_mm,
+            window_L = window_L,
+            rotated = video_data["rotated"],
+            fps = video_data["fps"],
+            duration_ms = video_data["duration_ms" ]
         )
 
         logger.debug("InputSummary foi")
 
         quality_info = QualityInfo( # Aqui, com base nos metadados também, são preenchidos os dados da qualidade dos frames
-            _frames_total = video_data["frame_count"],
-            _frames_without_detection = 0,
-            _warnings = video_data["warnings"]
+            frames_total = video_data["frame_count"],
+            frames_without_detection = 0,
+            warnings = video_data["warnings"]
         )
 
         logger.debug("QualityInfo foi")
 
         if video_data["is_valid"]:
-            job._status = "processing"
-            job._stage = "fase_1"
+            job.status = "processing"
+            job.stage = "fase_1"
 
             logger.info("Video validado, começando Fase 1")
 
-            raw_data = ia_engine._process_video( # Aqui chama a função que vai processar o vídeo
+            raw_data = ia_engine.process_video( # Aqui chama a função que vai processar o vídeo
                 video_path = video_path,
-                window_L = window_L
+                height_mm = height_mm,
+                rotated = video_data["rotated"]
             )
 
             logger.info("Vídeo processado com sucesso")
 
-            job._status("completed")
-            job._stage("finished")
-            job._finished_at = datetime.now(timezone.utc)
-            job._duration_ms = int((job._finished_at - job._started_at).total_seconds() * 1000) # Calculei o momento final - inicial para ter a duração exata, a função total_seconds converte para segundos, que multiplicados por 1000 ficam em ms
+            job.status = "completed"
+            job.stage = "finished"
+            job.finished_at = datetime.now(timezone.utc)
+            job.duration_ms = int((job.finished_at - job.started_at).total_seconds() * 1000) # Calculei o momento final - inicial para ter a duração exata, a função total_seconds converte para segundos, que multiplicados por 1000 ficam em ms
+
+            dados_biomecanicos = BiomechanicalData(
+                events=raw_data["events"],
+                kinematics=raw_data["kinematics"],
+                pose3d=raw_data["pose3d"],
+                video_3d=raw_data.get("video_3d") 
+            )
 
             return ResultV1(
-                _result_version = "1.0",
-                _job = job,
-                _input_summary = input_summary,
-                _quality_info = quality_info
+                result_version = "1.0",
+                job = job,
+                input_summary = input_summary,
+                quality_info = quality_info,
+                data = dados_biomecanicos
             )
 
         else:
             logger.error("Video inválido")
 
             error_info = ErrorInfo(
-                _code = "ERROR_VIDEO_INVALID",
-                _message = "O vídeo enviado não pôde ser aberto ou não atende aos requisitos básicos",
-                _stage = job._stage,
-                _retryable = False,
-                _details = str(video_data["warnings"])
+                code = "ERROR_VIDEO_INVALID",
+                message = "O vídeo enviado não pôde ser aberto ou não atende aos requisitos básicos",
+                stage = job.stage,
+                retryable = False,
+                details = str(video_data["warnings"])
             )
 
-            job._status = "failed"
+            job.status = "failed"
 
             return ResultV1(
-                _result_version = "1.0",
-                _job = job,
-                _error = error_info,
-                _input_summary = input_summary,
-                _quality_info = quality_info
+                result_version = "1.0",
+                job = job,
+                error = error_info,
+                input_summary = input_summary,
+                quality_info = quality_info
             )
 
     except ValueError as e:
         error_code = str(e)
 
         error_info = ErrorInfo(
-            _code = error_code,
-            _message = "O vídeo falhou na validação inicial do OpenCV",
-            _stage = "ingest",
-            _retryable = False
+            code = error_code,
+            message = "O vídeo falhou na validação inicial do OpenCV",
+            stage = "ingest",
+            retryable = False
         )
 
-        job._status = "failed"
+        job.status = "failed"
 
         return ResultV1(
-            _result_version = "1.0",
-            _job = job,
-            _error = error_info,
+            result_version = "1.0",
+            job = job,
+            error = error_info,
             # Aqui o restante dos atributos fica automaticamente como None
         )

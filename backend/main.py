@@ -10,8 +10,8 @@ if __name__ == "__main__":
     altura_paciente = 1778
 
     try:
-        resultado = motor.processar_video_completo(
-            video_filepath=video_teste,
+        resultado = motor.process_video(
+            video_path=video_teste,
             height_mm=altura_paciente,
             rotated=False
         )
