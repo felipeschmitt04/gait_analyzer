@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react"; 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -16,13 +17,19 @@ import { Label } from "@/components/ui/label"
 export default function LoginPage() {
   const router = useRouter()
 
-  // Função única para mandar para a página de pacientes
+  //Limpa o cookie assim que o usuário entra na tela de login
+  useEffect(() => {
+    document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  }, []);
+
   const entrarNoSistema = (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+    if (e) e.preventDefault();
     
-    // Mudamos de "/" para "/pacientes" para evitar o conflito com o redirect do config
-    router.push("/pacientes")
-  }
+    // Cookie de sessão (expira ao fechar o navegador)
+    document.cookie = "auth-token=true; path=/; SameSite=Lax";
+
+    router.push("/pacientes");
+  };
 
   return (
     <div className="flex h-screen w-full items-center justify-center px-4">

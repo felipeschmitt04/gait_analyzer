@@ -8,7 +8,8 @@ import {
   Settings, 
   User, 
   History,
-  Lock 
+  Lock,
+  UserCog 
 } from "lucide-react";
 
 import { usePaciente } from "@/app/PacienteContext";
@@ -26,16 +27,23 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const items = [
-  { title: "Pacientes", url: "/pacientes", icon: User, protected: false },  
-  { title: "Visualização 3D", url: "/visualizacao", icon: LayoutDashboard, protected: true },
-  { title: "Nova Análise", url: "/nova-analise", icon: Footprints, protected: true },
-  { title: "Relatórios", url: "/historico", icon: History, protected: true },
-  { title: "Configurações", url: "/configuracoes", icon: Settings, protected: false },
-];
-
 export function AppSidebar() {
   const { pacienteAtivo } = usePaciente();
+  const [isAdmin, setIsAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkAdmin = document.cookie.includes("user-role=admin");
+    setIsAdmin(checkAdmin);
+  }, []);
+
+  const items = [
+    { title: "Pacientes", url: "/pacientes", icon: User, protected: false },
+    ...(isAdmin ? [{ title: "Profissionais", url: "/admin/profissionais", icon: UserCog, protected: false }] : []),
+    { title: "Visualização 3D", url: "/visualizacao", icon: LayoutDashboard, protected: true },
+    { title: "Nova Análise", url: "/nova-analise", icon: Footprints, protected: true },
+    { title: "Relatórios", url: "/historico", icon: History, protected: true },
+    { title: "Configurações", url: "/configuracoes", icon: Settings, protected: false },
+  ];
 
   return (
     <Sidebar collapsible="icon" className="border-r border-slate-200 bg-white">
@@ -63,15 +71,10 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.title}>
                     {isLocked ? (
-                      /* 
-                         SidebarMenuButton sem o 'asChild' e com 'disabled' 
-                         para manter o alinhamento idêntico aos outros itens.
-                      */
                       <SidebarMenuButton 
                         disabled
                         className="flex items-center gap-3 opacity-80 cursor-not-allowed select-none hover:bg-transparent"
                       >
-                        {/* min-w-5 garante que o ícone ocupe o mesmo espaço sempre */}
                         <item.icon className="size-5 text-slate-500 min-w-5" />
                         <span className="font-medium text-slate-600 flex-1">{item.title}</span>
                         <Lock className="size-3.5 text-slate-800 stroke-[2.5px] ml-auto" />
@@ -83,8 +86,10 @@ export function AppSidebar() {
                         className="hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
                       >
                         <Link href={item.url} className="flex items-center gap-3">
-                          <item.icon className="size-5 text-emerald-600 min-w-5" />
-                          <span className="font-medium text-slate-700">{item.title}</span>
+                          <item.icon className="size-5 min-w-5 text-emerald-600" />
+                          <span className="font-medium text-slate-700">
+                            {item.title}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     )}
