@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 import logging
 import tensorflot_hub as hub
+from utils import fit_model
 
 logger = logging.getLogger("Engine")
 
@@ -68,13 +69,30 @@ class GaitAnalysisEngine:
         except Exception as e:
             logger.error("Erro ao carregar GaitTransformer")
             raise e
-    
+
     def calculate_kinematics(_self, raw_pose3d):
-        
-        
+        pose = raw_pose3d.copy()
+        pose = pose[:, :, [0,2,1]]
+        pose[:, :. 2] *= -1
+        pose /= 1000.0
+        pose = pose - np.min(pose, axis=1, keepdims=True)
+
+        timestamps = jnp.arange(len(pose)) / 30.0
+        dataset = (timestamps, pose)
+
+        fkw = get_default_wrapper
+
+        updated_model, metrics = fit_model(fkw, dataset)
+
+        (state, constraints, next_states), (ang, vel, action), _ = updated_model(
+            dataset[0], skip_vel=True, skip_action=True
+        )
+
+        return ang, dataset[0]
+
     def _process_video(_self, video_path):
         logger.info("Começando processamento real do vídeo")
-        
+
         vid, n_frames = video_reader(video_path)
 
         joint_names = _self.metrabs_model.per_skeleton_joint_names[_self.skeleton].numpy().astype(str)
@@ -84,7 +102,7 @@ class GaitAnalysisEngine:
         for i, frame_batch in enumerate(vid):
             if rotated:
                 frame_batch = frame_batch.transpose(0, 2, 1, 3)
-            
+
             pred = _self.metrabs_model.detect_poses_batched(frame_batch, skeleton=_self.skeleton)
 
             if accumulated is None:
@@ -92,7 +110,7 @@ class GaitAnalysisEngine:
             else:
                 for key in accumulated.keys():
                     accumulated[key] = tf.concat([accumulated[key], pred[key]], axis=0)
-        
+
         pose3d = np.array([p[0] for p in accumulated['pose3d'] if len(p)>0])
         logger.info("Pose 3D bruta extraída")
 
@@ -112,10 +130,21 @@ class GaitAnalysisEngine:
             self.window_L
         )
 
+        angulos_3d, timestamps_jax = self;calculate_kinematics(pose3d)
+
         phase_ordered = np.take(phase, [0, 4, 1, 5, 2, 6, 3, 7], axis=-1)
         state, predictions, errors = gait_kalman_smoother(phase_ordered)
 
+        exit_file = '3d_rebuild.mp4'
+        render_trajectory(angulos_3d, exit_file, xml_path=None)
+
         return {
-            "pose3d": pose3d.tolist(),
-            "events": state.tolist()
+            "status": "sucesso",
+            "video_3d": exit_file,
+            "pose3d": keypoints.tolist(),
+            "events": state.tolist(),
+            "kinematics": {
+                "angles": angulos_3d.tolist(),
+                "timestamps": timestamps_jax.tolist()
+            }
         }
